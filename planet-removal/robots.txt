@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://billcorps.github.io/planet-removal/sitemap.xml
