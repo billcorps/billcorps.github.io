@@ -300,7 +300,7 @@ export class PlanetRenderer {
 
 class FluidSurface {
   constructor(renderer,camera) {
-    this.renderer=renderer;this.camera=camera;this.size='';
+    this.renderer=renderer;this.camera=camera;this.size='';this.bufferSize=new THREE.Vector2();
     this.geometry=new THREE.InstancedBufferGeometry();
     this.geometry.setAttribute('aCorner',new THREE.BufferAttribute(corners,2));
     this.geometry.setDrawRange(0,6);
@@ -309,14 +309,17 @@ class FluidSurface {
       a.setUsage(THREE.DynamicDrawUsage);this.geometry.setAttribute(name,a);
     }
     this.geometry.instanceCount=0;
-    this.particleUniforms={uViewProjection:uniform(new THREE.Matrix4()),uDepthScale:uniform(-1/48)};
+    this.particleUniforms={uViewProjection:uniform(new THREE.Matrix4()),uDepthScale:uniform(-1/48),
+      uPixelWorld:uniform(new THREE.Vector2()),uRadiance:uniform(0)};
     this.densityMaterial=raw(S.PARTICLE_VERTEX,S.DENSITY_FRAGMENT,this.particleUniforms,{
       transparent:true,depthTest:false,depthWrite:false,blending:THREE.CustomBlending,
       blendSrc:THREE.OneFactor,blendDst:THREE.OneFactor,blendEquation:THREE.AddEquation });
     this.depthMaterial=raw(S.PARTICLE_VERTEX,S.DEPTH_FRAGMENT,this.particleUniforms);
     this.dropletMaterial=raw(S.PARTICLE_VERTEX,S.DROPLET_FRAGMENT,{
-      ...this.particleUniforms,uStellarColor:uniform(new THREE.Vector3(1,.26,.02)),
-      uStellarBrightness:uniform(1),uHalo:uniform(.07)},
+      uViewProjection:uniform(new THREE.Matrix4()),uDepthScale:uniform(-1/48),
+      uPixelWorld:uniform(new THREE.Vector2()),uRadiance:uniform(1),
+      uDensity:uniform(null),uDepth:uniform(null),uInvViewport:uniform(new THREE.Vector2()),
+      uStellarColor:uniform(new THREE.Vector3(1,.26,.02)),uStellarBrightness:uniform(1),uHalo:uniform(.07)},
       {transparent:true,depthWrite:false,blending:THREE.NormalBlending});
     this.particleMesh=new THREE.Mesh(this.geometry,this.densityMaterial);this.particleMesh.frustumCulled=false;
     this.particleScene=new THREE.Scene();this.particleScene.add(this.particleMesh);
@@ -345,11 +348,13 @@ class FluidSurface {
       minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,type:THREE.UnsignedByteType});
     this.compositeUniforms.uDensity.value=this.density.texture;this.compositeUniforms.uDepth.value=this.depth.texture;
     this.compositeUniforms.uTexel.value.set(1/w,1/h);
+    this.dropletMaterial.uniforms.uDensity.value=this.density.texture;
+    this.dropletMaterial.uniforms.uDepth.value=this.depth.texture;
   }
-  fill(parts, detachedOnly=false) {
+  fill(parts) {
     const attributes=this.geometry.attributes;let count=0;
     for(let i=0;i<Math.min(MAX_PLASMA,parts.length);i++) {
-      const p=parts[i];if(detachedOnly&&p.resident||!Number.isFinite(p.radius)||p.radius<=0)continue;
+      const p=parts[i];if(!Number.isFinite(p.radius)||p.radius<=0)continue;
       attributes.aCenter.setXYZ(count,p.position.x,p.position.y,p.position.z);
       attributes.aRadius.setX(count,p.radius);attributes.aHeat.setX(count,clamp(p.heat,.08,1));count++;
     }
@@ -363,13 +368,22 @@ class FluidSurface {
     if(!this.fill(parts))return;
     this.particleUniforms.uViewProjection.value.multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse);
     this.particleUniforms.uDepthScale.value=this.camera.projectionMatrix.elements[10]*.5;
+    const vp=this.particleUniforms.uViewProjection.value.elements,d=this.dropletMaterial.uniforms;
+    r.getDrawingBufferSize(this.bufferSize);
+    const bufferWidth=Math.max(1,this.bufferSize.x),bufferHeight=Math.max(1,this.bufferSize.y);
+    this.particleUniforms.uPixelWorld.value.set(2/(Math.abs(vp[0])*this.density.width),2/(Math.abs(vp[5])*this.density.height));
+    this.particleUniforms.uRadiance.value=0;
+    d.uViewProjection.value.copy(this.particleUniforms.uViewProjection.value);
+    d.uDepthScale.value=this.particleUniforms.uDepthScale.value;
+    d.uPixelWorld.value.set(2/(Math.abs(vp[0])*bufferWidth),2/(Math.abs(vp[5])*bufferHeight));
+    d.uRadiance.value=1;d.uInvViewport.value.set(1/bufferWidth,1/bufferHeight);
     r.setClearColor(0,0);r.setRenderTarget(this.density);r.clear(true,false,false);
     this.particleMesh.material=this.densityMaterial;r.render(this.particleScene,this.camera);
     r.setRenderTarget(this.depth);r.clear(true,true,false);
     this.particleMesh.material=this.depthMaterial;r.render(this.particleScene,this.camera);
     r.setRenderTarget(null);
     const home=(frame.bodies||[]).find(b=>b.home),core=Math.max(.08,home?.radius||.4);
-    const halo=clamp(core*.18,.028,.18),vp=this.particleUniforms.uViewProjection.value.elements;
+    const halo=clamp(core*.18,.028,.18);
     const u=this.compositeUniforms,star=frame.stellar;
     u.uHaloStep.value.set(halo*Math.abs(vp[0])*.5,halo*Math.abs(vp[5])*.5);
     u.uHaloDepth.value=clamp(vp[14]*.5+.5,0,1);
@@ -397,12 +411,18 @@ class FluidSurface {
       this.quad.material=this.bodyMaterial;u.uGlow.value=0;r.render(this.compositeScene,this.camera);
       r.setScissorTest(false);
     }
-    if(this.fill(parts,true)) {
-      const d=this.dropletMaterial.uniforms;d.uStellarColor.value.copy(stellarColor(star));
-      d.uStellarBrightness.value=star?.brightness==null?1:.84+.16*Math.sqrt(clamp(star.brightness,0,6));
-      d.uHalo.value=frame.reducedEffects?.035:.07;this.particleMesh.material=this.dropletMaterial;
-      r.render(this.particleScene,this.camera);
+    // Resolve sparse resident particles too; the fragment masks pixels already covered by the coherent body.
+    d.uStellarColor.value.copy(stellarColor(star));
+    d.uStellarBrightness.value=star?.brightness==null?1:.84+.16*Math.sqrt(clamp(star.brightness,0,6));
+    let detailHalo=frame.reducedEffects?.035:.07,primaryAge=Infinity;
+    if(star?.phase==='EXPANDING')detailHalo=frame.reducedEffects?.05:.11;
+    else if(star?.phase==='COLLAPSING')detailHalo=frame.reducedEffects?.06:.14;
+    for(const front of star?.fronts||[]) {
+      if(front.depth===0&&Number.isFinite(front.age)&&front.age>=0)primaryAge=Math.min(primaryAge,front.age);
     }
+    const afterglow=clamp(1-primaryAge/.8,0,1);
+    d.uHalo.value=detailHalo+(frame.reducedEffects?.03:.09)*afterglow*afterglow;
+    this.particleMesh.material=this.dropletMaterial;r.render(this.particleScene,this.camera);
     r.setClearColor(0x04060e,1);
   }
   dispose() {
