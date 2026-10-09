@@ -132,7 +132,7 @@ export function createRenderer(canvas, marbleImage) {
       textContext.fillStyle = '#000'
       textContext.textBaseline = 'alphabetic'
 
-      // Mirror all text pieces, including the subtitle, link labels, and bullets.
+      // Mirror all text pieces, including the heading, link labels, and bullets.
       content.querySelectorAll('[data-text-piece]').forEach((piece) => {
         const box = piece.getBoundingClientRect()
         const style = getComputedStyle(piece)

@@ -1,6 +1,6 @@
 # BillCorps
 
-A small local React website displaying “🜗 Hello, This is BillCorps” in Source Serif 4, followed by two WebGL postprocessing passes: Ink Bleed, then Emerald Tablet. The effects are inspired by [Alembic Lab](https://lab.alembic.space/).
+A small local React website displaying “🜗 Hello, This is BillCorps 🜉” in Source Serif 4, followed by two WebGL postprocessing passes: Ink Bleed, then Emerald Tablet. The effects are inspired by [Alembic Lab](https://lab.alembic.space/).
 
 Emerald Tablet uses the image-processing version of the effect and [Alembic's marble lookup texture](https://lab.alembic.space/textures/256x256/Marble/marble3.png), served locally from `src/assets/emerald-marble.png`. The background uses gentler paper grain and 15% of the emerald effect's strength; the lettering keeps the full ink treatment. Both shaders are static and redraw when the page size changes.
 
@@ -24,7 +24,7 @@ npm run preview
 
 ## Customize
 
-The greeting and subtitle live in `src/ShaderText.jsx`, and the linked sites live in `src/sites.js`. The GPU shader settings are exported at the top of `src/shaders.js`. The page styling lives in `src/index.css`.
+The greeting lives in `src/ShaderText.jsx`, and the linked sites live in `src/sites.js`. The GPU shader settings are exported at the top of `src/shaders.js`. The page styling lives in `src/index.css`.
 
 ## GitHub Pages
 

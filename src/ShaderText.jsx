@@ -4,9 +4,7 @@ import '@fontsource/noto-sans-symbols-2'
 import { createRenderer, loadMarbleImage } from './renderer.js'
 import { SITES } from './sites.js'
 
-export const MESSAGE = '🜗 Hello, This is BillCorps'
-export const SUBTITLE = '🜁, 🜃, 🜄, 🜂, and 🜉'
-const subtitleWords = SUBTITLE.split(' ')
+export const MESSAGE = '🜗 Hello, This is BillCorps 🜉'
 
 export default function ShaderText() {
   const canvasRef = useRef(null)
@@ -64,7 +62,7 @@ export default function ShaderText() {
     // Wait for the local fonts and marble lookup before creating the GPU passes.
     Promise.all([
       document.fonts.load('400 64px "Source Serif 4 Variable"'),
-      document.fonts.load('400 64px "Noto Sans Symbols 2"', '🜗'),
+      document.fonts.load('400 64px "Noto Sans Symbols 2"', '🜗🜉'),
       document.fonts.ready,
       loadMarbleImage(),
     ]).then(([, , , image]) => {
@@ -98,13 +96,11 @@ export default function ShaderText() {
             <span className="alchemical-symbol" data-text-piece>🜗</span>
             <span data-text-piece>{' Hello,'}</span>
           </span>{' '}
-          <span data-text-piece>This is BillCorps</span>
+          <span className="signature">
+            <span data-text-piece>This is BillCorps</span>{' '}
+            <span className="alchemical-symbol" data-text-piece>🜉</span>
+          </span>
         </h1>
-        <p className="subtitle">
-          {subtitleWords.map((word, index) => (
-            <span key={index} data-text-piece>{word}{index < subtitleWords.length - 1 ? ' ' : ''}</span>
-          ))}
-        </p>
         <nav aria-label="Other BillCorps sites">
           <ul className="site-links" role="list">
             {SITES.map((site) => (
