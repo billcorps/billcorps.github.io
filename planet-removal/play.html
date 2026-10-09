@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050e18">
+  <meta name="description" content="Play Planet Removal in your browser. Launch a fireball through a living solar system. Remove the targets, protect the client, and keep the star stable.">
+  <link rel="canonical" href="https://billcorps.github.io/planet-removal/play.html">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="play/game.css">
+  <title>Play Planet Removal — billcorps</title>
+  <script type="module" src="play/app.js"></script>
+</head>
+<body>
+  <main id="game" aria-label="Planet Removal">
+    <canvas id="world" aria-label="Planet Removal solar system" tabindex="0"></canvas>
+    <div id="interaction" aria-hidden="true"></div>
+    <div id="hud" hidden>
+      <header class="flight-header">
+        <div class="contract"><span class="eyebrow" id="sector">CONTRACT 01</span><h1 id="contract-name">Planet removal</h1><p id="contract-detail"></p></div>
+        <button class="icon-button" data-action="pause" aria-label="Pause game"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6v12M16 6v12"/></svg></button>
+        <div class="job-progress"><span id="target-progress">0 / 1 REMOVED</span><progress id="integrity" value="1" max="1" aria-label="Target material remaining"></progress><span id="shot-count">0 SHOTS</span></div>
+        <p id="stellar-status" class="stellar-status"></p>
+      </header>
+      <div id="body-markers" aria-hidden="true"></div>
+      <button id="evacuate" class="evacuate" data-action="evacuate" hidden>Evacuate</button>
+      <div id="launcher-container">
+        <button id="launcher" aria-label="Fireball launcher. Pull downward and release to launch. Keyboard: left and right aim, up and down set power, space launches.">
+          <svg viewBox="-150 -150 300 300" aria-hidden="true">
+            <defs><radialGradient id="launcher-glow"><stop stop-color="#ffc56a" stop-opacity=".65"/><stop offset="1" stop-color="#ffac45" stop-opacity="0"/></radialGradient></defs>
+            <circle class="launch-track" r="34"/><circle id="power-ring" r="34"/>
+            <line id="pull-line" x1="0" y1="0" x2="0" y2="0"/>
+            <path id="aim-arrow" d="M0-12V-44M-4-38L0-44L4-38"/>
+            <g id="pull-ball"><circle class="pull-glow" r="33" fill="url(#launcher-glow)"/><circle r="10" fill="#ffcf79"/><circle r="5" fill="#fff6da"/></g>
+            <circle id="empty-launcher" r="8"/>
+          </svg>
+        </button>
+        <p id="launcher-message">PULL BACK & RELEASE</p>
+        <span id="power-value"></span>
+      </div>
+      <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+    </div>
+    <div id="screens">
+      <section id="screen-LOADING" class="screen loading-screen" aria-labelledby="loading-title">
+        <div class="loading-orbit" aria-hidden="true"></div><p class="eyebrow">BILLCORPS / ORBITAL OPERATIONS</p>
+        <h1 id="loading-title">Preparing your<br>solar system.</h1><p id="loading-message" role="status">Loading the game…</p>
+        <progress id="loading-progress" max="1" value="0" aria-label="Game loading progress"></progress>
+      </section>
+      <section id="screen-MENU" class="screen menu-screen" hidden aria-labelledby="menu-title">
+        <div class="menu-heading"><p class="eyebrow">BILLCORPS / ORBITAL OPERATIONS</p><h1 id="menu-title">PLANET<br><span>REMOVAL</span></h1><p>A small job. An unreasonable solution.</p></div>
+        <div class="panel menu-panel"><div class="roles"><span class="target-role">◎ REMOVE TARGETS</span><span class="client-role">◇ PROTECT CLIENT</span></div><p class="panel-intro">Keep the star stable. Every shot matters.</p>
+          <button class="primary" data-action="play" id="menu-play">Begin removal</button>
+          <div class="button-row"><button data-action="new-run">New run</button><button data-action="settings">Settings</button></div>
+          <button data-action="leaderboard">Global leaderboard</button>
+        </div>
+        <footer class="menu-footer"><a href="./">About the game</a><span>BY BILLCORPS</span><button class="text-button" data-action="fullscreen">Full screen</button></footer>
+      </section>
+      <section id="screen-PAUSE" class="screen shade centered" hidden aria-labelledby="pause-title">
+        <div class="panel"><p class="eyebrow cyan">OPERATIONS ON HOLD</p><h1 id="pause-title">Take a breath.</h1><p>The solar system can wait.</p>
+          <button class="primary" data-action="resume">Resume</button><div class="button-row"><button data-action="settings">Settings</button><button data-action="menu">Main menu</button></div><button data-action="leaderboard">Global leaderboard</button>
+        </div>
+      </section>
+      <section id="screen-RESULTS" class="screen bottom-screen" hidden aria-labelledby="results-title">
+        <div class="panel"><p class="eyebrow cyan">◇ CONTRACT COMPLETE</p><h1 id="results-title">One less planet.</h1><p>Client intact. Star stable. Invoice approved.</p>
+          <div class="results-score"><strong id="reward">+0</strong><div><span id="result-shots"></span><span id="result-total"></span></div></div>
+          <button class="primary" data-action="next" id="next-contract">Next contract →</button><p id="result-wait" class="wait-message" hidden>Confirming the client is safe…</p>
+        </div>
+      </section>
+      <section id="screen-DEFEAT" class="screen bottom-screen" hidden aria-labelledby="defeat-title">
+        <div class="panel"><div class="panel-topline"><p class="eyebrow danger">CONTRACT LOST</p><span class="mono" id="defeat-score"></span></div>
+          <h1 id="defeat-title">Well. That escalated.</h1><p id="defeat-cause"></p>
+          <div class="button-row"><button class="primary" data-action="replay">Play again</button><button data-action="menu">Main menu</button></div><button data-action="leaderboard">Global leaderboard</button>
+        </div>
+      </section>
+      <section id="screen-SETTINGS" class="screen shade centered" hidden aria-labelledby="settings-title">
+        <div class="panel settings-panel"><p class="eyebrow cyan">FLIGHT PREFERENCES</p><h1 id="settings-title">Make space yours.</h1>
+          <label class="setting"><span>Sound effects<small>Impacts, plasma and stellar events</small></span><input type="checkbox" name="sound" role="switch"></label>
+          <label class="setting"><span>Space music<small>An evolving, generative soundtrack</small></span><input type="checkbox" name="music" role="switch"></label>
+          <label class="setting"><span>Haptics<small>A little feedback with every shot</small></span><input type="checkbox" name="haptics" role="switch"></label>
+          <label class="setting"><span>Reduced effects<small>Softer glow and fewer fragments</small></span><input type="checkbox" name="reducedEffects" role="switch"></label>
+          <p class="controls-help">Touch or mouse: pull the launcher down, then release.<br>Keyboard: ← → aim, ↑ ↓ power, Space launch, Esc pause.</p>
+          <div class="button-row backup-actions"><button data-action="export-save">Save backup</button><button data-action="import-save">Restore backup</button></div>
+          <input type="file" id="save-file" accept=".json,application/json" hidden>
+          <a class="privacy-link" href="privacy.html" target="_blank" rel="noopener">Privacy & browser saves ↗</a><button class="primary" data-action="close-overlay">Done</button>
+        </div>
+      </section>
+      <section id="screen-LEADERBOARD" class="screen shade centered" hidden aria-labelledby="leaderboard-title">
+        <div class="panel"><p class="eyebrow cyan">ONE GLOBAL LEADERBOARD</p><h1 id="leaderboard-title">A little friendly<br>competition.</h1>
+          <p>The shared global leaderboard is not connected to the browser game yet. Your run and progress are saved on this device.</p>
+          <p class="muted">No browser rankings are submitted while the service is unavailable.</p><button class="primary" data-action="close-overlay">Back</button>
+        </div>
+      </section>
+      <section id="screen-ERROR" class="screen shade centered" hidden aria-labelledby="error-title">
+        <div class="panel"><p class="eyebrow danger">OPERATIONS INTERRUPTED</p><h1 id="error-title">A small setback.</h1><p id="error-message" role="alert"></p><button class="primary" data-action="reload">Try again</button><a class="privacy-link" href="support.html">Get support ↗</a></div>
+      </section>
+    </div>
+    <div id="safe-area" aria-hidden="true"></div>
+    <dialog id="new-run-dialog"><div class="panel"><p class="eyebrow">FRESH START</p><h2>Start a new run?</h2><p>This replaces your current saved run. Your preferences stay the same.</p><div class="button-row"><button id="cancel-new-run">Keep playing</button><button class="primary" id="confirm-new-run">New run</button></div></div></dialog>
+    <noscript><div class="screen centered shade"><div class="panel"><h1>JavaScript is needed to play.</h1><p>Enable JavaScript in your browser, then reload this page.</p><a href="./">About Planet Removal</a></div></div></noscript>
+  </main>
+</body>
+</html>
