@@ -36,4 +36,8 @@ The repository uses **GitHub Actions** as its Pages source. After pushing change
 
 The existing `app-ads.txt` and Planet Removal site are preserved in `public/`. Vite copies them unchanged into `dist/`, so they remain available at `/app-ads.txt` and `/planet-removal/`. The deployment workflow checks that both are copied exactly before publishing.
 
-Keep `public/app-ads.txt` identical to `BarTallyWebsite/public/app-ads.txt`. Its publisher identifier is intentionally public. Add authorized sellers only from the actual ad network's supplied records.
+Keep `public/app-ads.txt` identical to `PourTallyWebsite/public/app-ads.txt`. Its publisher identifier is intentionally public. Add authorized sellers only from the actual ad network's supplied records.
+
+## PourTally website move
+
+The homepage links to [PourTally](https://billcorps.github.io/PourTallyWebsite/). Static redirects under `public/BarTallyWebsite/` preserve the former home, app, insights, and privacy links. The retired beta URL redirects to the new home page. JavaScript redirects preserve query strings and section anchors; HTML refresh and a visible link provide fallbacks. Keep these files in the Pages build for existing app installs and old bookmarks.
