@@ -5,6 +5,7 @@ import { projectionLayout, project } from './projection.js';
 const MAX_PLASMA = 512, MAX_DEBRIS = 80;
 const corners = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
 const white = new THREE.Color(1, 1, 1);
+const rotationAxis = new THREE.Vector3();
 const vector = p => new THREE.Vector3(p?.x || 0, p?.y || 0, p?.z || 0);
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, value));
 
@@ -19,7 +20,8 @@ function bodyUniforms() {
     uSolarPulse: uniform(0), uSurfaceTime: uniform(0), uBurnPoint: uniform(new THREE.Vector3()),
     uBurnHeat: uniform(0), uHeat: uniform(0), uLiquid: uniform(0), uAperture: uniform(0),
     uAccretion: uniform(0), uCaptureRadius: uniform(0), uPlanet: uniform(0),
-    uSurface: uniform(new THREE.Vector4(.9,0,0,0)), uMolten: uniform(0) };
+    uSurface: uniform(new THREE.Vector4(.9,0,0,0)), uMolten: uniform(0),
+    uLightColor: uniform(new THREE.Vector3(1,.86,.69)), uOcean: uniform(0), uAtmosphere: uniform(0) };
 }
 function bindMatrices(mesh) {
   mesh.frustumCulled = false;
@@ -56,13 +58,22 @@ function decoratedGeometry(source) {
   if (flat !== source) flat.dispose(); source.dispose();
   return result;
 }
-function setPose(mesh, position, scale = 1, spin = 0) {
+function setPose(mesh, position, scale = 1, spin = 0, axis = null) {
   mesh.position.set(position?.x || 0, position?.y || 0, position?.z || 0);
-  mesh.scale.setScalar(scale); mesh.rotation.set(0, spin, 0);
+  mesh.scale.setScalar(scale);
+  if(axis)mesh.quaternion.setFromAxisAngle(rotationAxis.set(axis.x,axis.y,axis.z).normalize(),spin);
+  else mesh.rotation.set(0, spin, 0);
 }
 function stellarColor(star) {
   return star?.type === 'MASSIVE' ? new THREE.Vector3(.18,.70,1)
     : star?.type === 'HYPERGIANT' ? new THREE.Vector3(.69,.29,1) : new THREE.Vector3(1,.26,.02);
+}
+function planetLight(star, result) {
+  if(star?.remnant==='BLACK_HOLE')return result.set(0,0,0);
+  if(star?.remnant&&star.remnant!=='NONE')return result.set(.55,.67,.80);
+  if(star?.type==='MASSIVE')return result.set(.68,.88,1);
+  if(star?.type==='HYPERGIANT')return result.set(.87,.76,1);
+  return result.set(1,.86,.69);
 }
 
 /** WebGL2 rendering of authoritative Java/native snapshots. No browser-side physics. */
@@ -82,14 +93,11 @@ export class PlanetRenderer {
     this.camera.updateMatrixWorld();
     this.world = new THREE.Scene(); this.background = new THREE.Scene();
     this.effectsScene = new THREE.Scene(); this.remnantScene = new THREE.Scene();
+    this.atmosphereScene = new THREE.Scene();
     this.meshes = new Map(); this.orbits = new Map(); this.generation = null;
     this.layout = projectionLayout(1,1);
     this.sphere = decoratedGeometry(new THREE.SphereGeometry(1,24,16));
     this.quad = decoratedGeometry(new THREE.PlaneGeometry(2,2));
-    this.fireball = bindMatrices(new THREE.Mesh(this.sphere, raw(S.VERTEX,S.FRAGMENT,bodyUniforms())));
-    this.fireball.material.uniforms.uEmission.value = 1;
-    this.fireball.material.uniforms.uTint.value.set(1,.78,.17,1);
-    this.world.add(this.fireball); this.fireball.visible = false;
     this.remnant = bindMatrices(new THREE.Mesh(this.sphere, raw(S.VERTEX,S.FRAGMENT,bodyUniforms())));
     this.remnant.material.uniforms.uEmission.value = 1;
     this.remnant.material.uniforms.uTint.value.set(.79,.91,1,1);
@@ -100,11 +108,36 @@ export class PlanetRenderer {
     this.remnant.visible = this.aperture.visible = false;
     this.createBackground(); this.createDebris(); this.createEffects();
     this.fluid = new FluidSurface(this.renderer, this.camera);
-    this.glow = this.createGlow(); this.effectsScene.add(this.glow);
-    this.trail = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({
-      color: 0xffb74c, transparent:true, opacity:.7, depthWrite:false, blending:THREE.AdditiveBlending }));
-    this.trail.frustumCulled = false; this.effectsScene.add(this.trail);
+    this.comets = Array.from({length:8},()=>this.createComet());
     this.metrics = { triangles:0, drawCalls:0, geometries:0, textures:0 };
+  }
+  createComet() {
+    const ball=bindMatrices(new THREE.Mesh(this.sphere,raw(S.VERTEX,S.FRAGMENT,bodyUniforms())));
+    ball.material.uniforms.uEmission.value=1;ball.material.uniforms.uTint.value.set(1,.78,.17,1);
+    const glow=this.createGlow();glow.material.uniforms.uTint.value.set(1,.36,.04,.32);
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(80*3),3).setUsage(THREE.DynamicDrawUsage));
+    const trail=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:0xffb74c,transparent:true,
+      opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending}));
+    trail.frustumCulled=false;ball.visible=glow.visible=trail.visible=false;
+    this.world.add(ball);this.effectsScene.add(glow,trail);return {ball,glow,trail};
+  }
+  updateComets(frame) {
+    const flights=frame.projectiles??(frame.projectile?[{position:frame.projectile,trail:frame.projectileTrail}]:[]);
+    if(flights.length>this.comets.length)throw new Error('The simulation exceeded its comet pool.');
+    for(let i=0;i<this.comets.length;i++) {
+      const {ball,glow,trail}=this.comets[i],flight=flights[i];
+      ball.visible=!!flight;glow.visible=!!flight&&!frame.reducedEffects;trail.visible=false;
+      if(!flight)continue;
+      setPose(ball,flight.position,.052);setPose(glow,flight.position,.2);
+      const points=flight.trail||[];
+      if(points.length>80)throw new Error('The simulation exceeded its comet trail limit.');
+      if(points.length>1&&!frame.reducedEffects) {
+        const attribute=trail.geometry.attributes.position;
+        for(let j=0;j<points.length;j++)attribute.setXYZ(j,points[j].x,points[j].y,points[j].z+.01);
+        attribute.needsUpdate=true;trail.geometry.setDrawRange(0,points.length);trail.visible=true;
+      }
+    }
   }
   resize(width, height, top = 0, bottom = 0) {
     this.layout = projectionLayout(width,height,top,bottom);
@@ -197,12 +230,29 @@ export class PlanetRenderer {
           mesh=bindMatrices(new THREE.Mesh(meshGeometry(data.vertices),raw(S.VERTEX,S.FRAGMENT,bodyUniforms())));
           this.meshes.set(key,mesh); this.world.add(mesh);
         }
-        setPose(mesh,body.position,body.radius,body.spin ?? body.rotation ?? 0);
+        setPose(mesh,body.position,body.radius,body.spin ?? body.rotation ?? 0,body.spinAxis);
         const u=mesh.material.uniforms, m=body.material||{};
+        planetLight(frame.stellar,u.uLightColor.value);
+        u.uOcean.value=m.name==='OCEAN'||m.name==='VERDANT'?1:0;
         u.uPlanet.value=1; u.uHeat.value=(body.heat||0)*(frame.reducedEffects?.45:.8);
         u.uMolten.value=body.molten||0; u.uSurface.value.set(m.roughness??.94,m.metallic||0,m.incandescence||0,m.atmosphere||0);
         u.uSurfaceTime.value=frame.reducedEffects?0:frame.time%1000;
         u.uCaptureRadius.value=frame.stellar?.remnant==='BLACK_HOLE'?frame.stellar.captureRadius:0;
+        const density=(m.atmosphere||0)*(1-(body.molten||0));
+        let atmosphere=mesh.userData.atmosphere;
+        if(density>0&&!atmosphere) {
+          // Share the live terrain buffer; removed regions cannot leave a spherical ghost.
+          atmosphere=bindMatrices(new THREE.Mesh(mesh.geometry,raw(S.VERTEX,S.FRAGMENT,bodyUniforms(),{
+            transparent:true,depthWrite:false,side:THREE.BackSide,blending:THREE.AdditiveBlending })));
+          mesh.userData.atmosphere=atmosphere;this.atmosphereScene.add(atmosphere);
+        }
+        if(atmosphere) {
+          atmosphere.visible=density>0;
+          setPose(atmosphere,body.position,body.radius*1.10,body.spin??body.rotation??0,body.spinAxis);
+          const au=atmosphere.material.uniforms;
+          au.uPlanet.value=1;au.uAtmosphere.value=density*(frame.reducedEffects?2.0:2.8);
+          au.uLightColor.value.copy(u.uLightColor.value);au.uCaptureRadius.value=u.uCaptureRadius.value;
+        }
         let burn=null;
         for(const b of frame.burns||[])if(b.body===body.id&&(!burn||b.age<burn.age))burn=b;
         u.uBurnHeat.value=burn?Math.max(0,1-burn.age/1.1)*burn.power*(frame.reducedEffects?.4:1):0;
@@ -210,6 +260,8 @@ export class PlanetRenderer {
       }
     }
     for(const [key,mesh] of this.meshes)if(!retained.has(key)) {
+      const atmosphere=mesh.userData.atmosphere;
+      if(atmosphere){this.atmosphereScene.remove(atmosphere);atmosphere.material.dispose();}
       this.world.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();this.meshes.delete(key);
     }
   }
@@ -232,8 +284,7 @@ export class PlanetRenderer {
     this.renderer.info.reset();
     this.updateOrbits(frame);this.updateBodies(frame);
     for(const line of this.orbits.values())line.visible=frame.stellar?.remnant!=='BLACK_HOLE';
-    this.fireball.visible=!!frame.projectile;
-    if(frame.projectile)setPose(this.fireball,frame.projectile,.052);
+    this.updateComets(frame);
     this.debris.count=Math.min(MAX_DEBRIS,(frame.debris||[]).length);
     for(let i=0;i<this.debris.count;i++) {
       const p=frame.debris[i],m=p.material||{};
@@ -250,20 +301,6 @@ export class PlanetRenderer {
       this.effectArray.set(effects);this.effectGeometry.setDrawRange(0,effects.length/9);
       this.effectGeometry.attributes.aPosition.data.needsUpdate=true;
     } else this.effectGeometry.setDrawRange(0,0);
-    const points=frame.projectileTrail||[];
-    if(points.length>1) {
-      let attribute=this.trail.geometry.attributes.position;
-      if(!attribute||attribute.count<points.length) {
-        attribute=new THREE.BufferAttribute(new Float32Array(Math.max(96,points.length)*3),3);
-        attribute.setUsage(THREE.DynamicDrawUsage);this.trail.geometry.setAttribute('position',attribute);
-      }
-      for(let i=0;i<points.length;i++)attribute.setXYZ(i,points[i].x,points[i].y,points[i].z+.01);
-      attribute.needsUpdate=true;this.trail.geometry.setDrawRange(0,points.length);this.trail.visible=true;
-    } else this.trail.visible=false;
-    this.glow.visible=!!frame.projectile;
-    if(frame.projectile) {
-      setPose(this.glow,frame.projectile,.2);this.glow.material.uniforms.uTint.value.set(1,.36,.04,.32);
-    }
     const star=frame.stellar, hole=star?.remnant==='BLACK_HOLE';
     this.remnant.visible=!!star&&star.remnant!=='NONE'&&!hole;
     this.aperture.visible=!!hole;
@@ -280,6 +317,7 @@ export class PlanetRenderer {
     su.uLensRadius.value.set(Math.max(.001,radius/this.layout.width*2),Math.max(.001,radius/this.layout.height*2));
     this.renderer.setRenderTarget(null);this.renderer.setScissorTest(false);this.renderer.clear(true,true,false);
     this.renderer.render(this.background,this.camera);this.renderer.render(this.world,this.camera);
+    this.renderer.render(this.atmosphereScene,this.camera);
     this.fluid.draw(frame,this.layout);
     this.renderer.render(this.effectsScene,this.camera);this.renderer.render(this.remnantScene,this.camera);
     if(this.shaderFailed)throw new Error('The graphics driver could not compile the game shaders.');
@@ -290,7 +328,7 @@ export class PlanetRenderer {
   dispose() {
     this.fluid.dispose();
     const geometries=new Set(), materials=new Set();
-    for(const scene of [this.world,this.background,this.effectsScene,this.remnantScene])scene.traverse(object=>{
+    for(const scene of [this.world,this.background,this.atmosphereScene,this.effectsScene,this.remnantScene])scene.traverse(object=>{
       if(object.geometry)geometries.add(object.geometry);
       if(object.material)materials.add(object.material);
     });

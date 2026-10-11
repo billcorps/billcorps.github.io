@@ -1,1 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#101412"/><path d="m29 10 16 6-3 11-13 5 4 15-15-4-8-16 9-13 10-4Z" fill="#ddfb90"/><path d="m45 32 12 2-2 13-12-2 2-13ZM33 49l10 3-4 9-9-5 3-7Z" fill="#ddfb90"/><path d="m20 22 9 5-8 7" fill="none" stroke="#101412" stroke-width="3"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Planet Remover icon</title>
+  <desc>A broken blue planet with a jagged dark-blue crust, about to be struck by a yellow comet wrapped in orange fire that surrounds its front and sides and fades into a short tail, on black space.</desc>
+  <defs>
+    <linearGradient id="planetBlue" x1="120" y1="202" x2="331" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#389AFF"/>
+      <stop offset="1" stop-color="#1763E8"/>
+    </linearGradient>
+    <linearGradient id="cometTrail" x1="301" y1="243" x2="419" y2="125" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF9324"/>
+      <stop offset="0.34" stop-color="#FF9F26" stop-opacity="0.95"/>
+      <stop offset="0.68" stop-color="#F86718" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#F86718" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path id="space" fill="#000000" d="M0 0H512V512H0Z"/>
+  <!-- The exposed, fractured edge faces the comet. -->
+  <path id="crust" fill="#123B83" d="M166 154C117 177 84 228 84 286C84 371 153 440 238 440C297 440 348 407 374 358L336 346L318 308L279 301L272 262L232 246L228 207L192 194L196 166Z"/>
+  <path id="blue-shell" fill="url(#planetBlue)" d="M151 177C111 204 90 249 96 297C103 371 164 428 238 428C287 428 332 403 358 365L318 367L299 329L261 321L252 281L211 267L207 229L173 215L178 189Z"/>
+  <!-- Two small fragments keep the broken silhouette readable at icon size. -->
+  <path id="upper-fragment" fill="#2179ED" d="M232 161L260 175L247 199L228 187Z"/>
+  <path id="right-fragment" fill="#1C58B4" d="M345 280L369 292L361 317L340 308Z"/>
+  <!-- A continuous fire envelope wraps ahead of and around the yellow core. -->
+  <path id="comet-tail" fill="url(#cometTrail)" d="M301 183C326 158 370 144 428 115C399 173 386 217 361 243A42.426 42.426 0 0 1 301 183Z"/>
+  <path id="comet" fill="#FFD43B" d="M363 213A32 32 0 1 1 299 213A32 32 0 1 1 363 213Z"/>
+</svg>

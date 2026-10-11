@@ -121,7 +121,7 @@ export class GameUI {
     $('power-ring').style.opacity=aiming?'1':'0';$('power-ring').style.strokeDashoffset=String(213.63*(1-power));
     $('aim-arrow').style.opacity=aiming?'1':'0';
     $('aim-arrow').setAttribute('transform',`rotate(${Math.atan2(direction.x,direction.y)*180/Math.PI})`);
-    $('launcher-message').textContent=star?.evacuating?'EVACUATING':hud.canFire?'PULL BACK & RELEASE':this.snapshot.projectile?'FIREBALL IN FLIGHT':'SYSTEM SETTLING';
+    $('launcher-message').textContent=star?.evacuating?'EVACUATING':hud.canFire?'PULL BACK & RELEASE':this.snapshot.projectile?'RELOADING':'SYSTEM SETTLING';
     $('power-value').textContent=aiming?`${Math.round(power*100)}% POWER`:'';
     $('launcher').setAttribute('aria-disabled',hud.canFire?'false':'true');
   }
