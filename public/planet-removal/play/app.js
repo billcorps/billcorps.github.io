@@ -1,8 +1,8 @@
-import { PlanetRenderer } from './renderer.js';
-import { GameUI, showLoading, showFailure } from './ui.js';
-import { BrowserStorage } from './storage.js';
-import { BrowserAudio } from './audio.js';
-import { LauncherInput } from './input.js';
+import { PlanetRenderer } from './renderer.js?build=5188d1624849d6ce';
+import { GameUI, showLoading, showFailure } from './ui.js?build=5188d1624849d6ce';
+import { BrowserStorage } from './storage.js?build=5188d1624849d6ce';
+import { BrowserAudio } from './audio.js?build=5188d1624849d6ce';
+import { LauncherInput } from './input.js?build=5188d1624849d6ce';
 
 let runtime,renderer,ui,input,audio;
 let stopped=false,lastTime=0,accumulator=0,simulationElapsed=0,lastSave=0,hiddenScreen=null;
@@ -49,7 +49,7 @@ async function boot() {
   try {
     const storage=new BrowserStorage();audio=new BrowserAudio(storage.readSettings());
     renderer=new PlanetRenderer(document.getElementById('world'));resize();
-    const {createPlanetRemovalRuntime}=await import('./runtime.js');
+    const {createPlanetRemovalRuntime}=await import('./runtime.js?build=5188d1624849d6ce');
     runtime=await createPlanetRemovalRuntime({storage,audio,onProgress:showLoading});
     runtime.setSettings(storage.readSettings());resize();
     ui=new GameUI(runtime,renderer,storage,audio);

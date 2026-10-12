@@ -27,5 +27,5 @@ export function pullAim(dx, dy) {
   const angle = Math.max(-65 * Math.PI / 180, Math.min(65 * Math.PI / 180,
     Math.atan2(-dx, Math.max(1, dy))));
   return { valid, x: Math.sin(angle), y: Math.cos(angle), z: 0,
-    power: Math.min(1, length / MAX_PULL), pull: valid ? Math.min(MAX_PULL, length) : 0 };
+    power: valid ? Math.max(.01, Math.min(1, (length - 10) / (MAX_PULL - 10))) : 0, pull: valid ? Math.min(MAX_PULL, length) : 0 };
 }

@@ -1,4 +1,4 @@
-import { project } from './projection.js';
+import { project } from './projection.js?build=5188d1624849d6ce';
 
 const $ = id => document.getElementById(id);
 const format = value => String(value ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -53,6 +53,7 @@ export class GameUI {
     }
   }
   sync(snapshot) {
+    const previousPhase=this.snapshot?.stellar?.phase;
     this.snapshot=snapshot;
     const hud=snapshot.hud||{};
     const screen=hud.screen||(hud.gameOver?'DEFEAT':hud.missionSucceeded?'RESULTS':'MENU');
@@ -67,6 +68,7 @@ export class GameUI {
     $('shot-count').textContent=`${hud.shots||0} SHOTS`;
     const star=snapshot.stellar,status=$('stellar-status');
     const phase=star?.phase||'STABLE';
+    if(previousPhase&&previousPhase!=='STABLE'&&phase==='STABLE')this.message('Returned plasma stabilized the star.');
     const phaseNames={STABLE:'STAR STABLE',UNSTABLE:'STELLAR INSTABILITY',EXPANDING:'STELLAR ENVELOPE EXPANDING',
       COLLAPSING:'CORE COLLAPSING',ERUPTING:'STELLAR ERUPTION',REMNANT:star?.remnant?.replaceAll('_',' ')||'STELLAR REMNANT'};
     status.textContent=phaseNames[phase]+(phase==='UNSTABLE'&&star.warningSeconds>0?` / ${star.warningSeconds.toFixed(1)}s`:'');
@@ -79,8 +81,12 @@ export class GameUI {
     $('next-contract').hidden=!hud.canAdvance;$('result-wait').hidden=!!hud.canAdvance;
     $('defeat-score').textContent=`SCORE ${format(hud.score)}`;
     const cause=star?.defeatCause||hud.defeatCause;
+    const recoverable=cause==='INSTABILITY'&&['UNSTABLE','EXPANDING','COLLAPSING'].includes(phase);
+    document.querySelector('#screen-DEFEAT .eyebrow').textContent=recoverable?'STAR UNSTABLE':'CONTRACT LOST';
+    document.querySelector('#screen-DEFEAT h1').textContent=recoverable?'The star may recover.':'Well. That escalated.';
     $('defeat-cause').textContent=cause==='CAPTURED'&&star?.remnant==='BLACK_HOLE'
-      ?'Captured by the black hole.':causes[cause]||'The job exceeded its safety margin.';
+      ?'Captured by the black hole.':recoverable
+        ?'Returning plasma may stabilize the star.':causes[cause]||'The job exceeded its safety margin.';
     $('evacuate').hidden=this.screen!=='PLAY'||!star||['STABLE','REMNANT'].includes(phase)||star.gameOver||star.evacuating||star.escaped;
     if(hud.message&&hud.message!==this.lastMessage){this.lastMessage=hud.message;this.message(hud.message);}
     this.updateMarkers(snapshot);this.updateLauncher();
@@ -112,7 +118,7 @@ export class GameUI {
     container.style.top=`${anchor.y}px`;container.style.bottom='auto';
     const aim=this.drag?.aim;const aiming=!!aim?.valid||this.snapshot.aiming;
     const direction=aim||hud.aimDirection||{x:0,y:1};
-    const power=aim?.power??hud.aimPower??.8;
+    const power=aim ? (aim.valid?aim.power:0) : (hud.aimPower??.8);
     const dx=aim?.valid?-aim.x*aim.pull:0,dy=aim?.valid?aim.y*aim.pull:0;
     $('pull-ball').setAttribute('transform',`translate(${dx},${dy})`);
     $('pull-ball').style.display=hud.canFire||this.drag?'':'none';

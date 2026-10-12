@@ -1,4 +1,4 @@
-import { pullAim, project } from './projection.js';
+import { pullAim, project } from './projection.js?build=5188d1624849d6ce';
 
 export class LauncherInput {
   constructor(element, runtime, getState, onChange, onGesture) {
@@ -29,7 +29,7 @@ export class LauncherInput {
     event.preventDefault(); this.onGesture();
     this.drag = { id: event.pointerId, anchorX: p.x, anchorY: p.y, anchor, aim: pullAim(0, 0) };
     this.element.setPointerCapture(event.pointerId);
-    this.runtime.aim(0, 1, 0, .2, true); this.onChange(this.drag);
+    this.runtime.aim(0, 1, 0, .01, true); this.onChange(this.drag);
   }
   move(event) {
     if (!this.drag || event.pointerId !== this.drag.id) return;
@@ -64,7 +64,7 @@ export class LauncherInput {
     if (event.key === 'ArrowRight') angle += .05;
     angle = Math.max(-65 * Math.PI / 180, Math.min(65 * Math.PI / 180, angle));
     if (event.key === 'ArrowUp') this.keyboardAim.power = Math.min(1, this.keyboardAim.power + .05);
-    if (event.key === 'ArrowDown') this.keyboardAim.power = Math.max(.12, this.keyboardAim.power - .05);
+    if (event.key === 'ArrowDown') this.keyboardAim.power = Math.max(.01, this.keyboardAim.power - .05);
     Object.assign(this.keyboardAim, { x: Math.sin(angle), y: Math.cos(angle) });
     this.runtime.aim(this.keyboardAim.x, this.keyboardAim.y, 0, this.keyboardAim.power, true);
     if (event.key === ' ' && !event.repeat) this.runtime.fire(false);

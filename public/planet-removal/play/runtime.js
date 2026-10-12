@@ -5,12 +5,12 @@ export async function createPlanetRemovalRuntime(options = {}) {
   if (!bootstrap) bootstrap = (async () => {
     notify(0.1, 'Loading native physics, destruction, meshing, and audio');
     if (!globalThis.PlanetRemovalNative) {
-      const {createPlanetRemovalNative} = await import('./bridge.js');
+      const {createPlanetRemovalNative} = await import('./bridge.js?build=5188d1624849d6ce');
       createPlanetRemovalNative();
     }
     await globalThis.PlanetRemovalNative.ready;
     notify(0.6, 'Loading the shared Java game rules');
-    const {boot} = await import('./game-core.js');
+    const {boot} = await import('./game-core.js?build=5188d1624849d6ce');
     boot([]);
   })().catch(error => { bootstrap = undefined; throw error; });
   await bootstrap;

@@ -1,6 +1,6 @@
-import * as THREE from './vendor/three.module.min.js';
-import * as S from './shaders.js';
-import { projectionLayout, project } from './projection.js';
+import * as THREE from './vendor/three.module.min.js?build=5188d1624849d6ce';
+import * as S from './shaders.js?build=5188d1624849d6ce';
+import { projectionLayout, project } from './projection.js?build=5188d1624849d6ce';
 
 const MAX_PLASMA = 512, MAX_DEBRIS = 80;
 const corners = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
@@ -115,10 +115,11 @@ export class PlanetRenderer {
     const ball=bindMatrices(new THREE.Mesh(this.sphere,raw(S.VERTEX,S.FRAGMENT,bodyUniforms())));
     ball.material.uniforms.uEmission.value=1;ball.material.uniforms.uTint.value.set(1,.78,.17,1);
     const glow=this.createGlow();glow.material.uniforms.uTint.value.set(1,.36,.04,.32);
-    const geometry=new THREE.BufferGeometry();
-    geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(80*3),3).setUsage(THREE.DynamicDrawUsage));
-    const trail=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:0xffb74c,transparent:true,
-      opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending}));
+    const geometry=meshGeometry(new Float32Array(159*6*9));
+    geometry.attributes.aPosition.data.setUsage(THREE.DynamicDrawUsage);geometry.setDrawRange(0,0);
+    const uniforms=bodyUniforms();uniforms.uEmission.value=1;uniforms.uTint.value.set(1,1,1,.78);
+    const trail=bindMatrices(new THREE.Mesh(geometry,raw(S.VERTEX,S.FRAGMENT,uniforms,{
+      transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})));
     trail.frustumCulled=false;ball.visible=glow.visible=trail.visible=false;
     this.world.add(ball);this.effectsScene.add(glow,trail);return {ball,glow,trail};
   }
@@ -130,12 +131,12 @@ export class PlanetRenderer {
       ball.visible=!!flight;glow.visible=!!flight&&!frame.reducedEffects;trail.visible=false;
       if(!flight)continue;
       setPose(ball,flight.position,.052);setPose(glow,flight.position,.2);
-      const points=flight.trail||[];
-      if(points.length>80)throw new Error('The simulation exceeded its comet trail limit.');
-      if(points.length>1&&!frame.reducedEffects) {
-        const attribute=trail.geometry.attributes.position;
-        for(let j=0;j<points.length;j++)attribute.setXYZ(j,points[j].x,points[j].y,points[j].z+.01);
-        attribute.needsUpdate=true;trail.geometry.setDrawRange(0,points.length);trail.visible=true;
+      const vertices=flight.trailVertices||[];
+      if(vertices.length) {
+        const buffer=trail.geometry.attributes.aPosition.data;
+        if(vertices.length>buffer.array.length||vertices.length%27)throw new Error('The simulation exceeded its comet ribbon limit.');
+        buffer.array.set(vertices);buffer.needsUpdate=true;
+        trail.geometry.setDrawRange(0,vertices.length/9);trail.visible=true;
       }
     }
   }
@@ -220,7 +221,7 @@ export class PlanetRenderer {
   }
   updateBodies(frame) {
     const retained=new Set();
-    for(const body of frame.bodies || []) {
+    for(const body of [...(frame.bodies||[]),...(frame.fragments||[])]) {
       if(body.destroyed||body.home)continue;
       for(let index=0;index<(body.meshes||[]).length;index++) {
         const data=body.meshes[index], key=`${frame.generation}:${data.id ?? `${body.id}:${index}:${frame.revision}`}`;
@@ -238,7 +239,7 @@ export class PlanetRenderer {
         u.uMolten.value=body.molten||0; u.uSurface.value.set(m.roughness??.94,m.metallic||0,m.incandescence||0,m.atmosphere||0);
         u.uSurfaceTime.value=frame.reducedEffects?0:frame.time%1000;
         u.uCaptureRadius.value=frame.stellar?.remnant==='BLACK_HOLE'?frame.stellar.captureRadius:0;
-        const density=(m.atmosphere||0)*(1-(body.molten||0));
+        const density=body.id>=100?0:(m.atmosphere||0)*(1-(body.molten||0));
         let atmosphere=mesh.userData.atmosphere;
         if(density>0&&!atmosphere) {
           // Share the live terrain buffer; removed regions cannot leave a spherical ghost.
@@ -266,24 +267,31 @@ export class PlanetRenderer {
     }
   }
   updateOrbits(frame) {
-    if(this.generation===frame.generation)return;
-    for(const orbit of this.orbits.values()){this.world.remove(orbit);orbit.geometry.dispose();orbit.material.dispose();}
-    this.orbits.clear(); this.generation=frame.generation;
+    if(this.generation!==frame.generation) {
+      for(const orbit of this.orbits.values()){this.world.remove(orbit);orbit.geometry.dispose();orbit.material.dispose();}
+      this.orbits.clear();this.generation=frame.generation;
+    }
     for(const body of frame.bodies||[]) {
       if(body.home)continue;
-      const radius=Math.hypot(body.position.x,body.position.y), positions=new Float32Array(129*3);
-      for(let i=0;i<=128;i++){const a=i/128*Math.PI*2;positions.set([Math.cos(a)*radius,Math.sin(a)*radius,-.65],i*3);}
-      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
-      const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:body.id===2?0x203a45:0x262b3b,
-        transparent:true,opacity:.48,depthWrite:false}));
-      this.world.add(line);this.orbits.set(body.id,line);
+      let line=this.orbits.get(body.id);
+      if(!line) {
+        const positions=new Float32Array(129*3);
+        for(let i=0;i<=128;i++){const a=i/128*Math.PI*2;positions.set([Math.cos(a),Math.sin(a),0],i*3);}
+        const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+        line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:body.id===2?0x203a45:0x262b3b,
+          transparent:true,opacity:.48,depthWrite:false}));
+        line.userData.radius=Math.hypot(body.position.x,body.position.y);this.world.add(line);this.orbits.set(body.id,line);
+      }
+      const shape=body.orbitShape,a=shape?.x||line.userData.radius,e=shape?.y||0,angle=shape?.z||0;
+      line.position.set(-a*e*Math.cos(angle),-a*e*Math.sin(angle),-.65);
+      line.rotation.z=angle;line.scale.set(a,a*Math.sqrt(1-e*e),1);
+      line.visible=!body.destroyed&&frame.stellar?.remnant!=='BLACK_HOLE';
     }
   }
   render(frame) {
     if(!frame)return;
     this.renderer.info.reset();
     this.updateOrbits(frame);this.updateBodies(frame);
-    for(const line of this.orbits.values())line.visible=frame.stellar?.remnant!=='BLACK_HOLE';
     this.updateComets(frame);
     this.debris.count=Math.min(MAX_DEBRIS,(frame.debris||[]).length);
     for(let i=0;i<this.debris.count;i++) {
@@ -394,7 +402,7 @@ class FluidSurface {
     for(let i=0;i<Math.min(MAX_PLASMA,parts.length);i++) {
       const p=parts[i];if(!Number.isFinite(p.radius)||p.radius<=0)continue;
       attributes.aCenter.setXYZ(count,p.position.x,p.position.y,p.position.z);
-      attributes.aRadius.setX(count,p.radius);attributes.aHeat.setX(count,clamp(p.heat,.08,1));count++;
+      attributes.aRadius.setX(count,p.radius);attributes.aHeat.setX(count,clamp(p.heat,0,1));count++;
     }
     for(const a of Object.values(attributes))if(a.isInstancedBufferAttribute)a.needsUpdate=true;
     this.geometry.instanceCount=count;return count;
@@ -435,7 +443,7 @@ class FluidSurface {
     // Constrain full-screen compositing to the actual live particle support and halo.
     let minX=layout.width,maxX=0,minY=layout.height,maxY=0;
     for(const p of parts) {
-      const center=project(p.position,layout),radius=(p.radius*1.9+halo)*layout.scale+8;
+      const center=project(p.position,layout),radius=(p.radius*1.9*(1+.6*(1-clamp(p.heat,0,1)))+halo)*layout.scale+8;
       minX=Math.min(minX,center.x-radius);maxX=Math.max(maxX,center.x+radius);
       minY=Math.min(minY,center.y-radius);maxY=Math.max(maxY,center.y+radius);
     }
